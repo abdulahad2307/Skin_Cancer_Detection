@@ -62,26 +62,36 @@ class Resnet32:
         #bn -> ac -> conv2d(stride = (1,1))
         bn_1 = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(data)
         ac_1 = Activation("relu")(bn_1)
+        print(ac_1)
 
-        conv_1 = Conv2D(int(num_filters * .25), (1, 1), use_bias = False, kernel_regularizer = l2(reg))(ac_1)
+        print("accessed 1")
+        conv_1 = Conv2D(int(num_filters * .25), (1, 1), padding = 'same', use_bias = False, kernel_regularizer = l2(reg))(ac_1)
+        print("conv_1: "+str(conv_1))
 
         #bn -> ac -> conv2d(stride = (3,3))
         bn_2 = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(conv_1)
         ac_2 = Activation("relu")(bn_2)
 
-        conv_2 = Conv2D(int(num_filters * .25), (3, 3), use_bias = False, kernel_regularizer = l2(reg))(ac_2)
+        print("accessed 2")
+        conv_2 = Conv2D(int(num_filters * .25), (3, 3), padding = 'same', use_bias = False, kernel_regularizer = l2(reg))(ac_2)
+        print("conv_2: "+str(conv_2))
 
         #bn -> ac -> conv2d(stride = (1, 1))
         bn_3 = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(conv_2)
         ac_3 = Activation("relu")(bn_3)
 
-        conv_3 = Conv2D(num_filters, (1, 1), use_bias = False, kernel_regularizer = l2(reg))(ac_3)
+        print("accessed 3")
+        conv_3 = Conv2D(num_filters, (1, 1), padding = 'same', use_bias = False, kernel_regularizer = l2(reg))(ac_3)
+        print("conv_3: "+str(conv_3))
 
         #for spatial size reducing
         if reduce_dimension:
+            print("accessed 4")
             shortcut = Conv2D(num_filters, (1, 1), use_bias = False, kernel_regularizer = l2(reg))(ac_1)
+            print("shortcut: "+str(shortcut))
 
         #final conv layer adding
+        print("accessed 5")
         resnet = add([conv_3, shortcut])
         return resnet
 
@@ -98,35 +108,44 @@ class Resnet32:
         #input -> bn to feed into resnet
         inputs = Input(shape = input_shape)
         x = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(inputs)
+        print("x: "+str(x))
 
         #conv2d(stride = (5, 5)) -> bn -> act -> pool
         x = Conv2D(num_filters[0], (5, 5), use_bias = False, padding = "same", kernel_regularizer = l2(reg))(x)
+        print("build-conv_1: "+str(x))
+
         x = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(x)
         x = Activation("relu")(x)
         x = ZeroPadding2D((1, 1))(x)
         x = MaxPooling2D((3, 3), strides = (2, 2))(x)
+        print("build-maxpool: "+str(x))
 
         #stacking up resnets
         for i in range(0, len(stages)):
+            print(i)
             if i == 0:
                 stride = (1, 1)
             else:
                 stride = (2, 2)
 
-        x = Resnet32.resnet(x, num_filters[i+1], stride, channel_dimension, reduce_dimension = True, reg = reg, bnEps = bnEps, bnMom = bnMom)
+            x = Resnet32.resnet(x, num_filters[i+1], stride, channel_dimension, reduce_dimension = True, reg = reg, bnEps = bnEps, bnMom = bnMom)
+            print("accessed 6")
 
-        for j in range(0, stages[i] - 1):
-            x = Resnet32.resnet(x, num_filters[i+1], (1, 1), channel_dimension, bnEps = bnEps, bnMom = bnMom)
+            for j in range(0, stages[i] - 1):
+                print("accessed j = %d" %j)
+                x = Resnet32.resnet(x, num_filters[i+1], (1, 1), channel_dimension, reduce_dimension = True, reg = reg, bnEps = bnEps, bnMom = bnMom)
 
 
         #avoid ffc and use average pooling
         x = BatchNormalization(axis = channel_dimension, epsilon = bnEps, momentum = bnMom)(x)
         x = Activation("relu")(x)
+        print("accessed 7")
         x = AveragePooling2D(8, 8)(x)
+        print("accessed 8")
 
         #softmax classifier
         x = Flatten()(x)
-        x = Dense(classes, kernel_initializer = l2(reg))(x)
+        x = Dense(len(classes))(x)
         x = Activation("softmax")(x)
 
         model = Model(inputs, x, name = "resnet_32")
